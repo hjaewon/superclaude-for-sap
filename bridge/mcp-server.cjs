@@ -287,9 +287,29 @@ function attemptDepInstall(initialMissing) {
     console.error(`[sc4sap] Pass 1 (npm install) failed: ${e.message}`);
   }
 
+  // Pass 1b: explicit-name install for npm-skipped deps.
+  // `npm install --omit=dev` against a stale package-lock.json sometimes
+  // reports "added N packages" while silently skipping deps that are listed
+  // in `dependencies` (observed with pino + pino-pretty after a 0.6.x version
+  // bump on Windows). Re-running with explicit names forces npm to realize the
+  // full dep tree.
+  let missing = listAllMissingDeps();
+  if (missing.length > 0) {
+    console.error(`[sc4sap] Pass 1b — explicit install for ${missing.length} dep(s): ${missing.join(', ')}`);
+    try {
+      const args = missing.map((d) => JSON.stringify(d)).join(' ');
+      cp.execSync(
+        `npm install ${args} --ignore-scripts --no-save --no-audit --no-fund`,
+        { cwd: VENDOR_DIR, stdio: 'inherit' },
+      );
+    } catch (e) {
+      console.error(`[sc4sap] Pass 1b (explicit install) failed: ${e.message}`);
+    }
+  }
+
   // Pass 2: leftovers from npm-cache/lockfile drift → copy from marketplace
   // vendor if available (it has the full node_modules tree).
-  let missing = listAllMissingDeps();
+  missing = listAllMissingDeps();
   if (missing.length > 0) {
     const mpVendor = findMarketplaceVendorDir();
     if (mpVendor) {
