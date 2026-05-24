@@ -114,7 +114,10 @@ Per-step model allocation. Skill frontmatter pins the main thread to Sonnet; eac
 - **Rendering (`sap-writer` × 1)** — Step 3 second dispatch (or Step 4 render invocation):
   - **L1 / L2 depth** → **Haiku 4.5** base (frontmatter). Pure templating from structured analyst output.
   - **L3 / L4 depth** → **Sonnet 4.6** override (`model: "sonnet"`) — longer narrative + deeper cross-reference + stronger consistency requirement.
-  - **Excel output** → Haiku still sufficient (driver wiring is mechanical fill-in); depth-driven override above still applies.
+  - **Excel output** — writer's deliverable is TWO JSON files consumed by `scripts/spec/build-spec.mjs`:
+    1. **TR (translation) map** — `English source string → target-language replacement` mapping; schema + slot semantics in `spec-templates.md` § Excel — Template-clone.
+    2. **image-spec.json** — `{selection, alv, processFlow, lang}` per-program image data; exact key names + sample values in `spec-templates.md` § Image Replacement. Drives the Sheet 3 Selection/ALV mockups + Sheet 4 horizontal Process Flow PNG.
+    Writer does NOT generate workbook styles, drivers, geometry, or PNGs directly — `asset/template_base.xlsx` supplies geometry, `build-spec.mjs` does clone + render + swap in one shot. Depth-driven model override still applies (Sonnet for L3/L4 because the warning-row and processing-step narrative is longer).
 - **Audit verification (`sap-critic` × 1, Opus 4.7, frontmatter, conditional L4 only)** — Step 3 gate: verifies every claim in the rendered spec cross-references a concrete line range in source. Skip for L1 / L2 / L3.
 
 All Agent dispatches pass `mode: "dontAsk"` (trust-session granted in Step 0a).
@@ -162,20 +165,16 @@ Spec generation only reads **source code + DDIC metadata + where-used** — neve
 </Data_Extraction_Safety>
 
 <Inputs_And_Screens_Rendering>
-**Universal applicability (v8.1):** the image pipeline runs for **every xlsx spec** regardless of language (ko / en / ja / de / …) and depth (**L1 / L2 / L3 / L4**). Driver is language-agnostic — just populate `SELECTION_IMAGE_SPEC` / `ALV_IMAGE_SPEC` (+ optional `SHEET_TITLE`) constants at the top of the per-spec driver, and the template's internal `buildImages()` helper auto-imports `screen-image-renderer.mjs`, renders both PNGs, and embeds them via `build({ images })`. **No driver edits to the build call are required.**
+**xlsx output — always-on pipeline (clone + program-specific imagery):** every xlsx spec runs `scripts/spec/build-spec.mjs <tr.json> <image-spec.json> <out.xlsx>`. The helper clones `asset/template_base.xlsx` (geometry / styles / fonts / column widths / row heights / image anchors — all preserved), renders three program-specific PNGs from `image-spec.json`, then swaps them into the cloned xlsx with dynamic `<xdr:ext>` extents (no stretching). Three image slots are populated on every spec:
+- **Sheet 3 Selection** (`xl/media/image2.png` at C4) — driven by `image-spec.json.selection`
+- **Sheet 3 ALV** (`xl/media/image1.png` at C19) — driven by `image-spec.json.alv`
+- **Sheet 4 Process Flow** (`xl/media/image3.png` at B19, horizontal layout) — driven by `image-spec.json.processFlow` (each program has a different flow, so `drawing4.xml` is injected on demand from a blank template container)
 
-**Parallel rendering:** `renderScreenImages()` in `scripts/spec/screen-image-renderer.mjs` uses `Promise.all` to spawn two headless browsers concurrently — Selection + ALV rasterize in parallel. Wall-clock cost is ~3s for both (vs ~6s sequential on Windows/Edge). Each branch is independent: if one rasterize fails or hits the 30s timeout, its PNG becomes null and the template falls back to cell-border wireframe for **that section only** — the other PNG still embeds, spec still opens.
+**Graceful degrade**: if no headless browser is on PATH, `renderScreenImages` returns `null` per slot and `build-spec.mjs` keeps the template mockups for that slot — never crashes.
 
-**Fallback wireframe (auto):** when headless browser missing OR rasterize fails, `screensSheet()` in the template detects `hasSelectionImg` / `hasAlvImg` are false and draws cell-border wireframes from the same `SELECTION_IMAGE_SPEC` / `ALV_IMAGE_SPEC` via `renderSelectionWireframe` / `renderAlvWireframe` — readers always see the layout, never an empty sheet.
+**No trigger keywords required.** Image rendering is part of the default Excel pipeline because each program has unique selection screens, ALV layouts, and flow charts. Drift risk applies only to geometry regression (the old throwaway-driver problem) and image swap only touches drawing extents + PNG bytes, not geometry.
 
-Mandatory content rules (propagate to every per-spec driver):
-- **ALV sample rows ≤ 3** (up to 5 only when demonstrating lock / edit / mixed-status variants). Never dump more — the image is a mockup, not a data extract.
-- **Color palette = grey + yellow only**. Headers, title bars, table captions use **light grey** (fill 2). Yellow (fill 3 / style 20) is reserved for warning rows. Green fill is retired.
-- **Yellow warning rows MUST sit at the BOTTOM** of the `Inputs & Screens` sheet — readers scan top→bottom.
-- **Informational rows** (Flow diagram, BAPI / Action mapping) above the Parameters table use minimal formatting.
-- **Localise `SHEET_TITLE` + `INPUTS_SHEET_NAME`** for ko/ja specs — `build()` warns (no silent drop) if `images[].sheetName` drifts from the final workbook sheet name.
-
-Markdown output — unchanged: continue emitting ASCII wireframes inside fenced code blocks. ASCII wireframes never go in xlsx cells.
+**Markdown output — unchanged:** continue emitting ASCII wireframes inside fenced code blocks (Step 3.5 in `workflow-steps.md`). ASCII wireframes never go in xlsx cells.
 </Inputs_And_Screens_Rendering>
 
 Task: {{ARGUMENTS}}

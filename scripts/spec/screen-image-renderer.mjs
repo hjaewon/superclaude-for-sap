@@ -38,6 +38,22 @@ function xml(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function wrapTextSvg(text, charsPerLine = 60) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const w of words) {
+    if (current.length + w.length + 1 > charsPerLine && current) {
+      lines.push(current);
+      current = w;
+    } else {
+      current = current ? current + ' ' + w : w;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
 // ──────────────────────────────────────────────────────────────
 // Localized legend strings (auto-derived per spec).
 // Extended by adding a new `lang` key; missing keys fall back to 'ko'.
@@ -81,6 +97,14 @@ const LEGEND = {
   },
 };
 function legendFor(lang) { return LEGEND[lang] || LEGEND.ko; }
+
+// Output scale factor — applied to the outer SVG width/height (and to the
+// metrics helpers so the headless browser viewport matches). The viewBox
+// stays at the original coordinate space so all internal positions/fonts are
+// unchanged; the browser simply renders the same SVG content at 15% larger.
+// Raise to make mockup PNGs bigger/crisper; lower if embedded images become
+// too wide for the Inputs & Screens sheet.
+const RENDER_SCALE = 1.15;
 
 // Approximate pixel width of a text string at 12 px font.
 // Conservative estimate: ASCII ≈ 7 px, CJK/full-width ≈ 13 px.
@@ -202,7 +226,7 @@ export function renderSelectionScreenSVG({
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="Arial,sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w * RENDER_SCALE)}" height="${Math.round(h * RENDER_SCALE)}" viewBox="0 0 ${w} ${h}" font-family="Arial,sans-serif" font-size="12">
 <rect width="${w}" height="${h}" fill="#FFF"/>
 <rect x="10" y="${blockTop}" width="${w - 20}" height="${blockH}" fill="none" stroke="#7E9CC2"/>
 <rect x="30" y="${blockTop - 8}" width="${Math.max(120, approxTextWidthPx(blockLabel) + 40)}" height="16" fill="#FFF"/>
@@ -237,7 +261,7 @@ export function selectionScreenMetrics({ fields = [], optionFields = [] } = {}) 
   const inputX = Math.max(200, LABEL_X + maxLabelPx + LABEL_GAP);
   const rangeNoteX = inputX + BOX_W + SEP_GAP + 10 + BOX_W + 2 + 28;
   const w = Math.max(900, rangeNoteX + 200);
-  return { width: w, height: h };
+  return { width: Math.round(w * RENDER_SCALE), height: Math.round(h * RENDER_SCALE) };
 }
 
 /**
@@ -332,7 +356,7 @@ export function renderAlvLayoutSVG({ columns = [], sampleRows = [], maxRows = 3,
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="Arial,sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(w * RENDER_SCALE)}" height="${Math.round(h * RENDER_SCALE)}" viewBox="0 0 ${w} ${h}" font-family="Arial,sans-serif" font-size="12">
 <rect width="${w}" height="${h}" fill="#FFF"/>
 <rect x="10" y="10" width="${gridRight - 10}" height="${headerH}" fill="#D0DEED" stroke="#3E7DB3"/>
 ${headerCells}
@@ -357,7 +381,288 @@ export function alvLayoutMetrics({ columns = [], sampleRows = [], maxRows = 3 } 
   const hasEditable = columns.some(c => c.editable);
   const legendPad   = (hasStatus || hasHotspot || hasEditable) ? 80 : 30;
   const h = 10 + 22 + rows.length * 24 + legendPad;
-  return { width: w, height: h };
+  return { width: Math.round(w * RENDER_SCALE), height: Math.round(h * RENDER_SCALE) };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Process flow chart renderer (v11)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Render PROCESS_FLOW items array as a vertical flowchart SVG.
+ * items: string[] — same format as PROCESS_FLOW constant:
+ *   plain text → process box (rectangle)
+ *   '?' prefix → decision (diamond shape, yellow fill)
+ *   '!' prefix → terminal (rounded rectangle, gray fill)
+ * opts: { lang, heading, width? }
+ */
+// CJK-aware text wrapping for process flow boxes.
+// Korean / Chinese / Japanese chars take ~2x width of ASCII at 12px Arial.
+// Returns lines that fit within `maxPx` visual pixels per line.
+function wrapTextPx(text, maxPx, charPx = 7) {
+  const str = String(text ?? '');
+  const charWidth = (ch) => {
+    const cp = ch.codePointAt(0);
+    if ((cp >= 0x1100 && cp <= 0x11FF) || (cp >= 0x2E80 && cp <= 0x303F) ||
+        (cp >= 0x3040 && cp <= 0x30FF) || (cp >= 0x3400 && cp <= 0x9FFF) ||
+        (cp >= 0xAC00 && cp <= 0xD7AF) || (cp >= 0xFF00 && cp <= 0xFFEF) ||
+        cp >= 0x1F000) {
+      return charPx * 1.8;
+    }
+    return charPx;
+  };
+  const lines = [];
+  let cur = '', curW = 0;
+  // Split on spaces but allow breaking at every char for CJK.
+  const tokens = str.split(/(\s+)/);
+  for (const tok of tokens) {
+    if (!tok) continue;
+    const tokW = [...tok].reduce((s, ch) => s + charWidth(ch), 0);
+    if (curW + tokW <= maxPx) {
+      cur += tok;
+      curW += tokW;
+    } else if (tokW > maxPx) {
+      // Token itself is too long — char-by-char break
+      if (cur) { lines.push(cur); cur = ''; curW = 0; }
+      for (const ch of tok) {
+        const cw = charWidth(ch);
+        if (curW + cw > maxPx) {
+          if (cur) lines.push(cur);
+          cur = ch; curW = cw;
+        } else {
+          cur += ch; curW += cw;
+        }
+      }
+    } else {
+      if (cur) lines.push(cur);
+      cur = tok.replace(/^\s+/, ''); // drop leading whitespace on new line
+      curW = [...cur].reduce((s, ch) => s + charWidth(ch), 0);
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
+// Compute the height a label needs given its wrap lines.
+function labelLinesAndHeight(label, boxW, kind) {
+  // Padding inside the box: leave 24px each side for process, 60px for diamond (tapered)
+  const padX = kind === 'decision' ? 60 : 24;
+  const maxLineW = boxW - padX * 2;
+  const lines = wrapTextPx(label, maxLineW);
+  return lines;
+}
+
+export function renderProcessFlowSVG(items = [], { lang = 'ko', heading = 'Process Flow Chart', width = 760, orientation = 'vertical' } = {}) {
+  if (orientation === 'horizontal') {
+    return renderProcessFlowHorizontalSVG(items, { lang, heading });
+  }
+  const BOX_W = 680;
+  const BOX_H_MIN = 38;
+  const TERM_H_MIN = 38;
+  const DIAMOND_H_MIN = 60;
+  const LINE_H = 18;          // px per text line
+  const PAD_TOP = 48;
+  const PAD_BOT = 28;
+  const ARROW_H = 30;
+  const LEFT = (width - BOX_W) / 2;
+  const BLUE = '#0A4F8C';
+  const YELLOW = '#FFFDE7';
+  const GRAY_FILL = '#EFEFEF';
+
+  let y = PAD_TOP;
+  const parts = [];
+
+  // Heading row
+  parts.push(`<text x="${width / 2}" y="${y - 16}" text-anchor="middle" font-size="15" font-weight="700" fill="${BLUE}">${xml(heading)}</text>`);
+
+  items.forEach((raw, i) => {
+    const txt = String(raw ?? '');
+    const isDecision = /^\?\s*/.test(txt);
+    const isTerminal = /^!\s*/.test(txt);
+    const label = isDecision ? txt.replace(/^\?\s*/, '')
+                 : isTerminal ? txt.replace(/^!\s*/, '')
+                 : txt;
+    const kind = isDecision ? 'decision' : isTerminal ? 'terminal' : 'process';
+    const lines = labelLinesAndHeight(label, BOX_W, kind);
+    const lineCount = lines.length;
+    const textBlockH = lineCount * LINE_H;
+
+    if (isDecision) {
+      const boxH = Math.max(DIAMOND_H_MIN, textBlockH + 28);
+      const cx = width / 2, cy = y + boxH / 2;
+      const dx = BOX_W / 2, dy = boxH / 2;
+      parts.push(`<polygon points="${cx},${cy - dy} ${cx + dx},${cy} ${cx},${cy + dy} ${cx - dx},${cy}" fill="${YELLOW}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      const startY = cy - ((lineCount - 1) * LINE_H) / 2 + 5;
+      lines.forEach((line, li) => {
+        parts.push(`<text x="${cx}" y="${startY + li * LINE_H}" text-anchor="middle" font-size="12" fill="#222">${xml(line)}</text>`);
+      });
+      y += boxH;
+    } else if (isTerminal) {
+      const boxH = Math.max(TERM_H_MIN, textBlockH + 16);
+      parts.push(`<rect x="${LEFT}" y="${y}" width="${BOX_W}" height="${boxH}" rx="${boxH / 2}" fill="${GRAY_FILL}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      const startY = y + boxH / 2 - ((lineCount - 1) * LINE_H) / 2 + 5;
+      lines.forEach((line, li) => {
+        parts.push(`<text x="${width / 2}" y="${startY + li * LINE_H}" text-anchor="middle" font-size="12" font-weight="700" fill="${BLUE}">${xml(line)}</text>`);
+      });
+      y += boxH;
+    } else {
+      const boxH = Math.max(BOX_H_MIN, textBlockH + 16);
+      parts.push(`<rect x="${LEFT}" y="${y}" width="${BOX_W}" height="${boxH}" fill="#FFFFFF" stroke="${BLUE}" stroke-width="1.6"/>`);
+      const startY = y + boxH / 2 - ((lineCount - 1) * LINE_H) / 2 + 5;
+      lines.forEach((line, li) => {
+        parts.push(`<text x="${width / 2}" y="${startY + li * LINE_H}" text-anchor="middle" font-size="12" fill="#222">${xml(line)}</text>`);
+      });
+      y += boxH;
+    }
+
+    // Arrow between items
+    if (i < items.length - 1) {
+      const arrowX = width / 2;
+      parts.push(`<line x1="${arrowX}" y1="${y}" x2="${arrowX}" y2="${y + ARROW_H - 8}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      parts.push(`<polygon points="${arrowX - 7},${y + ARROW_H - 10} ${arrowX + 7},${y + ARROW_H - 10} ${arrowX},${y + ARROW_H}" fill="${BLUE}"/>`);
+      y += ARROW_H;
+    }
+  });
+
+  const totalH = y + PAD_BOT;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width * RENDER_SCALE)}" height="${Math.round(totalH * RENDER_SCALE)}" viewBox="0 0 ${width} ${totalH}" font-family="Arial,sans-serif" font-size="12">
+<rect width="${width}" height="${totalH}" fill="#FFF"/>
+${parts.join('\n')}
+</svg>`;
+}
+
+export function processFlowMetrics(items = [], { width = 760, orientation = 'vertical' } = {}) {
+  if (orientation === 'horizontal') {
+    return processFlowHorizontalMetrics(items);
+  }
+  const BOX_W = 680;
+  const BOX_H_MIN = 38, TERM_H_MIN = 38, DIAMOND_H_MIN = 60;
+  const LINE_H = 18, ARROW_H = 30, PAD_TOP = 48, PAD_BOT = 28;
+  let h = PAD_TOP;
+  items.forEach((raw, i) => {
+    const txt = String(raw ?? '');
+    const isDecision = /^\?\s*/.test(txt);
+    const isTerminal = /^!\s*/.test(txt);
+    const label = isDecision ? txt.replace(/^\?\s*/, '')
+                 : isTerminal ? txt.replace(/^!\s*/, '')
+                 : txt;
+    const kind = isDecision ? 'decision' : isTerminal ? 'terminal' : 'process';
+    const lines = labelLinesAndHeight(label, BOX_W, kind);
+    const textBlockH = lines.length * LINE_H;
+    if (isDecision) h += Math.max(DIAMOND_H_MIN, textBlockH + 28);
+    else if (isTerminal) h += Math.max(TERM_H_MIN, textBlockH + 16);
+    else h += Math.max(BOX_H_MIN, textBlockH + 16);
+    if (i < items.length - 1) h += ARROW_H;
+  });
+  h += PAD_BOT;
+  return { width: Math.round(width * RENDER_SCALE), height: Math.round(h * RENDER_SCALE) };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Horizontal Process Flow renderer (xlsx embed — sheet4 anchor B19).
+//
+// Why horizontal: spec readers (PM / consultant) need to grasp the end-to-end
+// flow at a glance. A tall vertical chart forces them to scroll the
+// "Processing Logic" sheet; a horizontal chart fits one Excel viewport and
+// keeps the whole flow visible without scrolling.
+//
+// Box width is dynamic per label (min 150, max 220) so longer step labels
+// don't get aggressively truncated. The chart stays on ONE row — wrapping
+// is intentionally not introduced; Excel scrolls horizontally if many steps.
+// User guidance (2026-05-24): "타이트하지 않게 가시성 우선".
+// ──────────────────────────────────────────────────────────────
+
+const PF_H_BOX_W_MIN = 150;
+const PF_H_BOX_W_MAX = 220;
+const PF_H_BOX_H = 78;
+const PF_H_ARROW_W = 28;
+const PF_H_PAD_X = 28;
+const PF_H_PAD_TOP = 50;
+const PF_H_PAD_BOT = 24;
+const PF_H_LINE_H = 18;
+
+function pfHorizontalBoxWidth(label) {
+  const innerMax = PF_H_BOX_W_MAX - 24;
+  const oneLine = wrapTextPx(label, innerMax);
+  if (oneLine.length === 1) {
+    const w = approxTextWidthPx(oneLine[0], 12) + 32;
+    return Math.max(PF_H_BOX_W_MIN, Math.min(PF_H_BOX_W_MAX, Math.round(w)));
+  }
+  return PF_H_BOX_W_MAX;
+}
+
+function pfHorizontalLayout(items) {
+  const boxes = items.map(raw => {
+    const txt = String(raw ?? '');
+    const isDecision = /^\?\s*/.test(txt);
+    const isTerminal = /^!\s*/.test(txt);
+    const label = isDecision ? txt.replace(/^\?\s*/, '')
+                 : isTerminal ? txt.replace(/^!\s*/, '')
+                 : txt;
+    const kind = isDecision ? 'decision' : isTerminal ? 'terminal' : 'process';
+    const boxW = pfHorizontalBoxWidth(label);
+    const lines = wrapTextPx(label, boxW - (kind === 'decision' ? 40 : 24));
+    return { kind, label, boxW, lines };
+  });
+  let totalW = PF_H_PAD_X * 2;
+  boxes.forEach((b, i) => {
+    totalW += b.boxW;
+    if (i < boxes.length - 1) totalW += PF_H_ARROW_W;
+  });
+  return { boxes, totalW };
+}
+
+export function renderProcessFlowHorizontalSVG(items = [], { lang = 'ko', heading = 'Process Flow Chart' } = {}) {
+  const BLUE = '#0A4F8C';
+  const YELLOW = '#FFFDE7';
+  const GRAY_FILL = '#EFEFEF';
+  const { boxes, totalW } = pfHorizontalLayout(items);
+  const width = totalW;
+  const totalH = PF_H_PAD_TOP + PF_H_BOX_H + PF_H_PAD_BOT;
+  const cy = PF_H_PAD_TOP + PF_H_BOX_H / 2;
+  const parts = [];
+  parts.push(`<text x="${width / 2}" y="${PF_H_PAD_TOP - 16}" text-anchor="middle" font-size="15" font-weight="700" fill="${BLUE}">${xml(heading)}</text>`);
+  let x = PF_H_PAD_X;
+  boxes.forEach((b, i) => {
+    const textY = cy - ((b.lines.length - 1) * PF_H_LINE_H) / 2 + 5;
+    if (b.kind === 'decision') {
+      const dx = b.boxW / 2, dy = PF_H_BOX_H / 2;
+      const ccx = x + dx;
+      parts.push(`<polygon points="${ccx},${cy - dy} ${ccx + dx},${cy} ${ccx},${cy + dy} ${ccx - dx},${cy}" fill="${YELLOW}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      b.lines.forEach((line, li) => {
+        parts.push(`<text x="${ccx}" y="${textY + li * PF_H_LINE_H}" text-anchor="middle" font-size="12" fill="#222">${xml(line)}</text>`);
+      });
+    } else if (b.kind === 'terminal') {
+      parts.push(`<rect x="${x}" y="${PF_H_PAD_TOP}" width="${b.boxW}" height="${PF_H_BOX_H}" rx="${PF_H_BOX_H / 2}" fill="${GRAY_FILL}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      b.lines.forEach((line, li) => {
+        parts.push(`<text x="${x + b.boxW / 2}" y="${textY + li * PF_H_LINE_H}" text-anchor="middle" font-size="12" font-weight="700" fill="${BLUE}">${xml(line)}</text>`);
+      });
+    } else {
+      parts.push(`<rect x="${x}" y="${PF_H_PAD_TOP}" width="${b.boxW}" height="${PF_H_BOX_H}" fill="#FFFFFF" stroke="${BLUE}" stroke-width="1.6"/>`);
+      b.lines.forEach((line, li) => {
+        parts.push(`<text x="${x + b.boxW / 2}" y="${textY + li * PF_H_LINE_H}" text-anchor="middle" font-size="12" fill="#222">${xml(line)}</text>`);
+      });
+    }
+    x += b.boxW;
+    if (i < boxes.length - 1) {
+      const ax1 = x + 2, ax2 = x + PF_H_ARROW_W - 8;
+      parts.push(`<line x1="${ax1}" y1="${cy}" x2="${ax2}" y2="${cy}" stroke="${BLUE}" stroke-width="1.6"/>`);
+      parts.push(`<polygon points="${ax2},${cy - 6} ${ax2},${cy + 6} ${x + PF_H_ARROW_W},${cy}" fill="${BLUE}"/>`);
+      x += PF_H_ARROW_W;
+    }
+  });
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width * RENDER_SCALE)}" height="${Math.round(totalH * RENDER_SCALE)}" viewBox="0 0 ${width} ${totalH}" font-family="Arial,sans-serif" font-size="12">
+<rect width="${width}" height="${totalH}" fill="#FFF"/>
+${parts.join('\n')}
+</svg>`;
+}
+
+export function processFlowHorizontalMetrics(items = []) {
+  const { totalW } = pfHorizontalLayout(items);
+  const totalH = PF_H_PAD_TOP + PF_H_BOX_H + PF_H_PAD_BOT;
+  return { width: Math.round(totalW * RENDER_SCALE), height: Math.round(totalH * RENDER_SCALE) };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -405,17 +710,70 @@ const PANE_INTER_H   = 28;
 const PANE_PLACE_H   = 60;
 const PANE_PAD_TOP   = 10;
 const PANE_PAD_BOT   = 10;
+const SIDE_DIVIDER_W = 4;    // vertical bar width between left/right panes
+const SIDE_CANVAS_W  = 1400; // total canvas width for split-vertical layouts
 
 function paneIsEmpty(p) {
-  return !Array.isArray(p?.sampleRows) || p.sampleRows.length === 0;
+  return !p?.treeRows && (!Array.isArray(p?.sampleRows) || p.sampleRows.length === 0);
 }
-function paneInnerMetrics(p) {
-  if (paneIsEmpty(p) && p.placeholder) return { width: 900, height: PANE_PLACE_H };
-  return alvLayoutMetrics({ columns: p.columns || [], sampleRows: p.sampleRows || [], maxRows: p.maxRows });
+function paneInnerMetrics(p, allocW) {
+  if (p?.treeRows) {
+    const rowH = 22;
+    return { width: allocW || 560, height: p.treeRows.length * rowH + 10 };
+  }
+  if (paneIsEmpty(p) && p?.placeholder) return { width: allocW || 900, height: PANE_PLACE_H };
+  return alvLayoutMetrics({ columns: p?.columns || [], sampleRows: p?.sampleRows || [], maxRows: p?.maxRows });
 }
 
-export function multipaneAlvMetrics({ panes = [] } = {}) {
+// ── ALV Tree inner SVG renderer ────────────────────────────────
+// Renders CL_GUI_ALV_TREE hierarchy (no outer <svg> wrapper — used
+// inside a parent SVG via <g transform>).
+// treeRows: [{ level: 0|1|2, label: string, expanded?: bool, selected?: bool }]
+function renderAlvTreeInnerSVG({ treeRows = [], paneW = 560 } = {}) {
+  const rowH = 22;
+  const parts = [];
+  treeRows.forEach((row, i) => {
+    const lv = row.level || 0;
+    const y  = i * rowH;
+    const indent = 10 + lv * 16;
+    const isLeaf = lv >= 2;
+    const icon = isLeaf
+      ? (row.selected ? '●' : '○')
+      : (row.expanded === false ? '▶' : '▼');
+    const textFill  = row.selected ? '#1F5AA0' : (lv === 0 ? '#0A4F8C' : '#222');
+    const iconFill  = isLeaf ? (row.selected ? '#1F5AA0' : '#666') : textFill;
+    const fontW     = lv === 0 ? '700' : '400';
+    if (row.selected) {
+      parts.push(`<rect x="0" y="${y}" width="${paneW}" height="${rowH}" fill="#D4E6F5"/>`);
+    } else if (i % 2 === 1) {
+      parts.push(`<rect x="0" y="${y}" width="${paneW}" height="${rowH}" fill="#F5F9FC"/>`);
+    }
+    parts.push(`<text x="${indent}" y="${y + 15}" font-size="11" fill="${iconFill}">${xml(icon)}</text>`);
+    parts.push(`<text x="${indent + 14}" y="${y + 15}" font-size="11" fill="${textFill}" font-weight="${fontW}">${xml(row.label || '')}</text>`);
+  });
+  return parts.join('\n');
+}
+
+export function multipaneAlvMetrics({ panes = [], layout = 'split-horizontal', splitRatio = [40, 60] } = {}) {
   if (!panes.length) return { width: 900, height: 100 };
+
+  // ── split-vertical: side-by-side (left | right) ────────────────
+  if (layout === 'split-vertical' && panes.length === 2) {
+    const totalW = SIDE_CANVAS_W;
+    const leftW  = Math.round(totalW * splitRatio[0] / 100);
+    const rightW = totalW - leftW - SIDE_DIVIDER_W;
+    const leftM  = paneInnerMetrics(panes[0], leftW);
+    const rightM = paneInnerMetrics(panes[1], rightW);
+    const rightNatW = rightM.width;
+    const rightScale = rightNatW > rightW ? rightW / rightNatW : 1;
+    const rightRenderH = Math.ceil(rightM.height * rightScale);
+    const bodyH  = Math.max(leftM.height, rightRenderH);
+    const capH   = 36; // always reserve caption row
+    const rawH   = PANE_PAD_TOP + PANE_TITLE_H + bodyH + capH + PANE_PAD_BOT;
+    return { width: Math.round(totalW * RENDER_SCALE), height: Math.round(rawH * RENDER_SCALE) };
+  }
+
+  // ── split-horizontal (default): vertical stacking ──────────────
   let totalH = PANE_PAD_TOP;
   let totalW = 900;
   panes.forEach((p, i) => {
@@ -425,14 +783,89 @@ export function multipaneAlvMetrics({ panes = [] } = {}) {
     if (m.width > totalW) totalW = m.width;
   });
   totalH += PANE_PAD_BOT;
-  return { width: totalW, height: totalH };
+  return { width: Math.round(totalW * RENDER_SCALE), height: Math.round(totalH * RENDER_SCALE) };
 }
 
-export function renderMultipaneAlvSVG({ layout = 'split-vertical', interaction = '', panes = [], lang = 'ko' } = {}) {
+// ── Side-by-side renderer (split-vertical) ─────────────────────
+function renderSideBySideAlvSVG({ panes = [], splitRatio = [40, 60], interaction = '', lang = 'ko' } = {}) {
+  const [leftPane, rightPane] = panes;
+  const totalW = SIDE_CANVAS_W;
+  const leftW  = Math.round(totalW * splitRatio[0] / 100);
+  const rightW = totalW - leftW - SIDE_DIVIDER_W;
+  const rightX = leftW + SIDE_DIVIDER_W;
+
+  const leftBodyM  = paneInnerMetrics(leftPane, leftW);
+  const rightBodyM = paneInnerMetrics(rightPane, rightW);
+  const rightNatW  = rightBodyM.width;
+  const rightScale = rightNatW > rightW ? rightW / rightNatW : 1;
+  const rightRenderH = Math.ceil(rightBodyM.height * rightScale);
+  const bodyH  = Math.max(leftBodyM.height, rightRenderH);
+  const capH   = 36;
+  const totalH = PANE_PAD_TOP + PANE_TITLE_H + bodyH + capH + PANE_PAD_BOT;
+
+  const titleY = PANE_PAD_TOP;
+  const bodyY  = titleY + PANE_TITLE_H;
+  const parts  = [];
+
+  // Left title bar
+  parts.push(`<rect x="0" y="${titleY}" width="${leftW}" height="${PANE_TITLE_H - 2}" fill="#E7E6E6" stroke="#888"/>`);
+  parts.push(`<text x="10" y="${titleY + PANE_TITLE_H - 9}" font-weight="700" fill="#333">${xml(leftPane.title || 'Pane 1')}</text>`);
+  // Left body frame
+  parts.push(`<rect x="0" y="${bodyY}" width="${leftW}" height="${bodyH}" fill="#FFF" stroke="#C8D4E2"/>`);
+  if (leftPane.treeRows) {
+    const treeSvg = renderAlvTreeInnerSVG({ treeRows: leftPane.treeRows, paneW: leftW });
+    parts.push(`<g transform="translate(0, ${bodyY + 4})">${treeSvg}</g>`);
+  } else if (paneIsEmpty(leftPane) && leftPane.placeholder) {
+    parts.push(`<text x="${leftW / 2}" y="${bodyY + bodyH / 2 + 4}" text-anchor="middle" fill="#888" font-style="italic">${xml(leftPane.placeholder)}</text>`);
+  } else {
+    const innerSvg = renderAlvLayoutSVG({ columns: leftPane.columns || [], sampleRows: leftPane.sampleRows || [], maxRows: leftPane.maxRows, lang });
+    parts.push(`<g transform="translate(0, ${bodyY})">${extractInnerSvg(innerSvg)}</g>`);
+  }
+
+  // Vertical divider
+  parts.push(`<rect x="${leftW}" y="${titleY}" width="${SIDE_DIVIDER_W}" height="${PANE_TITLE_H - 2 + bodyH}" fill="#5A85AE"/>`);
+
+  // Right title bar
+  parts.push(`<rect x="${rightX}" y="${titleY}" width="${rightW}" height="${PANE_TITLE_H - 2}" fill="#E7E6E6" stroke="#888"/>`);
+  parts.push(`<text x="${rightX + 10}" y="${titleY + PANE_TITLE_H - 9}" font-weight="700" fill="#333">${xml(rightPane.title || 'Pane 2')}</text>`);
+  // Right body frame
+  parts.push(`<rect x="${rightX}" y="${bodyY}" width="${rightW}" height="${bodyH}" fill="#FFF" stroke="#C8D4E2"/>`);
+  if (paneIsEmpty(rightPane) && rightPane.placeholder) {
+    parts.push(`<text x="${rightX + rightW / 2}" y="${bodyY + bodyH / 2 + 4}" text-anchor="middle" fill="#888" font-style="italic">${xml(rightPane.placeholder)}</text>`);
+  } else {
+    const innerSvg = renderAlvLayoutSVG({ columns: rightPane.columns || [], sampleRows: rightPane.sampleRows || [], maxRows: rightPane.maxRows, lang });
+    if (rightScale < 1) {
+      parts.push(`<svg x="${rightX}" y="${bodyY}" width="${rightW}" height="${rightRenderH}" viewBox="0 0 ${rightNatW} ${rightBodyM.height}" preserveAspectRatio="xMinYMin meet">`);
+      parts.push(extractInnerSvg(innerSvg));
+      parts.push(`</svg>`);
+    } else {
+      parts.push(`<g transform="translate(${rightX}, ${bodyY})">${extractInnerSvg(innerSvg)}</g>`);
+    }
+  }
+
+  // Interaction caption
+  const caption = interaction ? `← ${xml(interaction)} →` : '← 트리 노드 클릭 시 우측 갱신 →';
+  parts.push(`<text x="${totalW / 2}" y="${bodyY + bodyH + 22}" text-anchor="middle" font-size="12" fill="#1F5AA0" font-weight="600">${caption}</text>`);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(totalW * RENDER_SCALE)}" height="${Math.round(totalH * RENDER_SCALE)}" viewBox="0 0 ${totalW} ${totalH}" font-family="Arial,sans-serif" font-size="12">
+<rect width="${totalW}" height="${totalH}" fill="#FFF"/>
+${parts.join('\n')}
+</svg>`;
+}
+
+export function renderMultipaneAlvSVG({ layout = 'split-horizontal', interaction = '', panes = [], splitRatio = [40, 60], lang = 'ko' } = {}) {
   if (!panes.length) {
     return renderAlvLayoutSVG({ columns: [], sampleRows: [], lang });
   }
-  const { width: totalW, height: totalH } = multipaneAlvMetrics({ panes });
+
+  // ── split-vertical: delegate to side-by-side renderer ──────────
+  if (layout === 'split-vertical' && panes.length === 2) {
+    return renderSideBySideAlvSVG({ panes, splitRatio, interaction, lang });
+  }
+
+  // ── split-horizontal (default): vertical stacking ──────────────
+  const { width: totalW, height: totalH } = multipaneAlvMetrics({ panes, layout: 'split-horizontal' });
 
   let cursorY = PANE_PAD_TOP;
   const parts = [];
@@ -465,7 +898,7 @@ export function renderMultipaneAlvSVG({ layout = 'split-vertical', interaction =
   });
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" font-family="Arial,sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(totalW * RENDER_SCALE)}" height="${Math.round(totalH * RENDER_SCALE)}" viewBox="0 0 ${totalW} ${totalH}" font-family="Arial,sans-serif" font-size="12">
 <rect width="${totalW}" height="${totalH}" fill="#FFF"/>
 ${parts.join('\n')}
 </svg>`;
@@ -675,24 +1108,26 @@ export async function rasterizeSvgToPng(svg, { width, height } = {}) {
 }
 
 /**
- * Convenience — render both screens from a spec dict.
- * spec: { selection: { fields, optionFields, ... }, alv: { columns, sampleRows, maxRows? }, lang? }
- * Returns { selection: { pngBuffer, width, height } | null, alv: { ... } | null }.
+ * Convenience — render screens and optional process flow chart from a spec dict.
+ * spec: { selection: { fields, optionFields, ... }, alv: { columns, sampleRows, maxRows? },
+ *         processFlow?: string[], lang? }
+ * Returns { selection: { pngBuffer, width, height } | null,
+ *           alv: { ... } | null,
+ *           processFlow: { ... } | null }.
  * Null values signal the caller to fall back to cell-border wireframes.
  *
- * `lang` is forwarded to both sub-renderers so the auto-derived legends
+ * `lang` is forwarded to all sub-renderers so the auto-derived legends
  * come out in the spec's language. When absent it defaults to 'ko' inside
  * the renderers, preserving backward-compatible behaviour.
  */
-export async function renderScreenImages({ selection, alv, lang = 'ko' } = {}) {
-  const out = { selection: null, alv: null };
-  // PARALLEL RENDERING — selection + ALV rasterize concurrently.
+export async function renderScreenImages({ selection, alv, processFlow, lang = 'ko' } = {}) {
+  const out = { selection: null, alv: null, processFlow: null };
+  // PARALLEL RENDERING — selection + ALV + processFlow rasterize concurrently.
   // Each rasterizeSvgToPng() spawns its own headless browser process, so
-  // Promise.all() cuts wall-clock time roughly in half (~3s → ~3s instead
-  // of ~6s on Windows/Edge). Each task is self-contained: a rasterize
-  // failure or timeout in one does not affect the other — the output of
-  // the failed branch simply stays null and the caller falls back to the
-  // cell-border wireframe for that section only.
+  // Promise.all() cuts wall-clock time roughly in half. Each task is
+  // self-contained: a rasterize failure or timeout in one does not affect
+  // the other — the output of the failed branch simply stays null and the
+  // caller falls back to the cell-border wireframe for that section only.
   const tasks = [];
   if (selection) {
     tasks.push((async () => {
@@ -719,11 +1154,25 @@ export async function renderScreenImages({ selection, alv, lang = 'ko' } = {}) {
           ? renderMultipaneAlvSVG({ ...alv, lang })
           : renderAlvLayoutSVG({ ...alv, lang });
         const { width, height } = isMultipane
-          ? multipaneAlvMetrics(alv)
+          ? multipaneAlvMetrics({ ...alv })
           : alvLayoutMetrics(alv);
         const png = await rasterizeSvgToPng(svg, { width, height });
         if (png) out.alv = { pngBuffer: png, width, height };
       } catch { /* keep alv null → wireframe fallback */ }
+    })());
+  }
+  if (Array.isArray(processFlow) && processFlow.length > 0) {
+    tasks.push((async () => {
+      try {
+        // xlsx embed path → horizontal orientation (user mandate 2026-05-24:
+        // 가로 레이아웃 강제, 가시성 우선). Markdown callers that want a
+        // vertical chart should call renderProcessFlowSVG() directly with the
+        // default orientation instead of going through renderScreenImages.
+        const svg = renderProcessFlowSVG(processFlow, { lang, orientation: 'horizontal' });
+        const { width, height } = processFlowMetrics(processFlow, { orientation: 'horizontal' });
+        const png = await rasterizeSvgToPng(svg, { width, height });
+        if (png) out.processFlow = { pngBuffer: png, width, height };
+      } catch { /* keep processFlow null → text fallback */ }
     })());
   }
   await Promise.all(tasks);
