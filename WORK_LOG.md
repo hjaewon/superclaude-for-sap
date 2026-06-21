@@ -74,16 +74,15 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 
 ---
 
-## 5. 현재 상태
+## 5. 현재 상태 (2026-06-21 갱신)
 
-```
-git status (supersap_custom):
- M .claude-plugin/marketplace.json
- M .claude-plugin/plugin.json
- M agents/sap-doc-specialist.md
-?? scripts/fetch-abap-keyword-doc.mjs
-```
-→ **아직 커밋 안 함. 푸시 안 함. Claude Code에 설치 안 함.** 다음 §6부터 진행하면 됨.
+- ✅ **커밋 완료** — `29d081b` on `main` (8 files, +460). 작업 트리 깨끗, origin(포크)보다 **1 커밋 앞섬**.
+- ✅ Codex 2회 검토 통과 (verdict: ship). 상세는 §10.
+- ⬜ **푸시 안 함** → §6 STEP 1 (`git push origin main`, GitHub 인증 필요)
+- ⬜ **Claude Code 설치 전환 안 함** → §6 STEP 2 → 검증 §6 STEP 3
+
+> **새 세션은 §5 + §6만 보면 이어감.** 푸시·설치 모두 이 폴더(supersap_custom)의 새 세션에서 그대로 진행 가능.
+> 참고: Claude Code 메모리는 폴더(프로젝트)별로 분리됨 — 이 폴더 기준 메모리를 `~/.claude/projects/D--Claude-for-SAP-supersap-custom/memory/`에 미리 복사해 둠(새 세션 자동 로드).
 
 ---
 
