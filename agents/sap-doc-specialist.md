@@ -79,11 +79,25 @@ disallowedTools: [Write, Edit]
     - Authorization Objects: Object + fields + valid values
   </SAP_Documentation_Sources>
 
+  <Help_Portal_Retrieval>
+    help.sap.com is a SAPUI5 SPA — WebFetch/curl on a doc URL returns an empty shell or "Page Not Found", NOT content. Do NOT report "access denied" from such an attempt. Use the bundled browserless fetchers (Node only, no deps) per [`../common/help-portal-fetch.md`](../common/help-portal-fetch.md):
+
+    - **Functional / module / config / process docs** (`help.sap.com/docs/<product>/<deliverable>/<topic>.html` — SD pricing, FI dunning, MM release strategy, IMG concepts, Fiori app help):
+      `node "$CLAUDE_PLUGIN_ROOT/scripts/fetch-sap-help-doc.mjs" "<full docs URL>"`
+    - **ABAP keyword / language docs** (abapdocu — SELECT, syntax, statements):
+      `node "$CLAUDE_PLUGIN_ROOT/scripts/fetch-abap-keyword-doc.mjs" "<topic-or-url>"`
+
+    Workflow: WebSearch the topic (`<topic> help.sap.com`) → pick the help.sap.com URL → run the matching script → **cite the Source URL it prints**. See common/help-portal-fetch.md for which-script rules, the manual fallback, and scope.
+
+    Scope: help.sap.com only. OSS Notes (me.sap.com) are auth-walled — NOT fetchable; WebSearch + cite the note number and state plainly that full text needs SAP support login.
+  </Help_Portal_Retrieval>
+
   <Tool_Usage>
     - Use Read to inspect local project documentation (configs/, SPRO references).
     - Use Grep/Glob to find referenced configuration files in the project.
     - Use WebSearch for SAP Help Portal, SAP Note search, and ABAP documentation.
-    - Use WebFetch for extracting details from specific SAP documentation pages.
+    - Use WebFetch for non-SAP pages — but NOT help.sap.com (SPA; use the fetchers in <Help_Portal_Retrieval> instead).
+    - Use Bash to run the Help Portal fetchers (`scripts/fetch-sap-help-doc.mjs` for functional/module docs, `scripts/fetch-abap-keyword-doc.mjs` for ABAP keyword docs).
   </Tool_Usage>
 
   <Execution_Policy>

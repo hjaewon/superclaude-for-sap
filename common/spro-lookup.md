@@ -64,6 +64,20 @@ question about SAP customizing
          Step 3: pick tables from Step 2, warn user, MCP GetTableContents
 ```
 
+## Separate branch — Official SAP Help Portal (standard behavior & citations)
+
+> **This is NOT a 4th step of the ladder above.** Steps 1–3 answer *"what did THIS customer configure?"* (cache / static / MCP). This branch answers *"what is the STANDARD/official SAP behavior, and what can I cite?"* Keep them distinct — do not route every customizing question through a web fetch.
+
+**Trigger (Tier 3 — on-demand):** load [`common/help-portal-fetch.md`](help-portal-fetch.md) and use this branch ONLY when the task needs authoritative official SAP documentation text — standard process/behavior, official config guidance, Fiori app help — and the local cache / static `configs/{MODULE}/*.md` cannot answer, or an explicit citation is required. Otherwise stay in Steps 1–3.
+
+**Cost gate:** these are public network fetches (lower risk than customer MCP, but not free). For a single targeted lookup, run it directly. For broad/comprehensive retrieval, state the network/token cost first — same courtesy as Step 3.
+
+**Module-consultant scope:** fetch **functional/module/config docs for your own module** only:
+`node "$CLAUDE_PLUGIN_ROOT/scripts/fetch-sap-help-doc.mjs" "<help.sap.com/docs/... URL>"`
+Delegate **ABAP keyword/language** lookups and deep cross-topic doc research to `sap-doc-specialist` — that is not module-consulting territory.
+
+Workflow: `WebSearch` `<topic> help.sap.com` → pick the `/docs/<product>/<deliverable>/<topic>.html` result → run the script → **cite the Source URL** and **state the SAP release** it reports. Out of scope: OSS Notes (me.sap.com — auth-walled).
+
 ## Setup Awareness
 
 - The cache is populated by `/sc4sap:setup spro` (optional step during setup)
@@ -78,5 +92,6 @@ Every consultant agent's `<Reference_Data>` section MUST list:
 2. Static reference (`configs/{MODULE}/spro.md` etc.) — to identify table/view candidates
 3. Live MCP (`GetTableContents` / `GetView`) — to read customer values, chained from Step 2
 4. Pointer to this protocol: `common/spro-lookup.md`
+*(Triggered, not part of the always-on customizing path — do NOT preload):* when a standard/official SAP documentation citation is needed, use the separate "Official SAP Help Portal" branch above (read `common/help-portal-fetch.md` on demand).
 
 Any skill that delegates to a consultant MUST pass a "local cache available: yes/no" flag in its handoff context so the consultant can short-circuit the lookup decision.
