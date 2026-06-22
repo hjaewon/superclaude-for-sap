@@ -115,7 +115,7 @@ Installed at: `${CLAUDE_PLUGIN_ROOT}/vendor/abap-mcp-adt/` (internal directory n
 When `ARGUMENTS` is `check` / `verify` / `status` (case-insensitive), run the vendor pin health check inline and report — do not print the full installation guide.
 
 **Execution**:
-1. Resolve plugin root (from `CLAUDE_PLUGIN_ROOT` env; fallback to cache path `~/.claude/plugins/cache/sc4sap/sc4sap/<version>/`).
+1. Resolve plugin root (from `CLAUDE_PLUGIN_ROOT` env; fallback to cache path `~/.claude/plugins/cache/sc4sap-custom/sc4sap/<version>/`).
 2. Run: `node "<plugin>/scripts/build-mcp-server.mjs" --check`
 3. Read the script's exit code and stdout/stderr.
 4. Format the result for the user:

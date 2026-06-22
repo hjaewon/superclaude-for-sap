@@ -10,7 +10,7 @@
  *
  * This script:
  *   1. Resolves the ACTIVE plugin version from the marketplace manifest
- *      (~/.claude/plugins/marketplaces/sc4sap/.claude-plugin/plugin.json).
+ *      (~/.claude/plugins/marketplaces/sc4sap-custom/.claude-plugin/plugin.json).
  *   2. Walks the cache directory for every sc4sap marketplace entry.
  *   3. Lists any cache version directories that do NOT match the active
  *      version ("stale") with their size in MB.
@@ -83,7 +83,7 @@ function fmtMB(bytes) {
 }
 
 function findActiveVersion() {
-  const marketplacePlugin = join(MARKETPLACES_ROOT, 'sc4sap');
+  const marketplacePlugin = join(MARKETPLACES_ROOT, 'sc4sap-custom');
   if (!existsSync(marketplacePlugin)) {
     return { error: `marketplace path missing: ${marketplacePlugin}` };
   }

@@ -37,7 +37,7 @@ Both print the official body text (description, restrictions, examples / config 
 - **Cite the Source URL** the script prints. Never present help.sap.com content from memory when the script can fetch it.
 - **Specify the SAP release.** The functional fetcher prints the resolved version; if it resolved from `LATEST` that is a FALLBACK, not authoritative — for release-specific guidance pass `?version=<rel>` in the URL and confirm it matches the project's `.sc4sap/config.json` release (ECC vs S/4HANA).
 - **Role split.** Module consultants use `fetch-sap-help-doc.mjs` for their OWN module's functional/config docs only; ABAP keyword/language lookups and deep cross-topic doc research belong to `sap-doc-specialist`.
-- **Script path.** Prefer `"$CLAUDE_PLUGIN_ROOT/scripts/<script>"`. If `$CLAUDE_PLUGIN_ROOT` is unset, the installed copy lives at `~/.claude/plugins/cache/sc4sap/sc4sap/<version>/scripts/<script>` (glob the newest `<version>` dir). Last resort — the manual fallback: for ABAP, `curl` the `.html` and read the `par*/ul*/code*` strings; for functional, call `http.svc/deliverableMetadata` (→ `data.deliverable.id`) then `http.svc/pagecontent` (→ `data.body`).
+- **Script path.** Prefer `"$CLAUDE_PLUGIN_ROOT/scripts/<script>"`. If `$CLAUDE_PLUGIN_ROOT` is unset, the installed copy lives at `~/.claude/plugins/cache/sc4sap-custom/sc4sap/<version>/scripts/<script>` (glob the newest `<version>` dir). Last resort — the manual fallback: for ABAP, `curl` the `.html` and read the `par*/ul*/code*` strings; for functional, call `http.svc/deliverableMetadata` (→ `data.deliverable.id`) then `http.svc/pagecontent` (→ `data.body`).
 
 ## Scope / limits (be honest)
 

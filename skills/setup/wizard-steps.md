@@ -32,11 +32,11 @@ Full procedure: **[`wizard-step-02-system-identification.md`](wizard-step-02-sys
 
 ## Step 3 — Install `abap-mcp-adt-powerup` MCP Server
 
-Clone (`github.com/babamba2/abap-mcp-adt-powerup.git`) and build the external MCP server into the **plugin root's** `vendor/abap-mcp-adt/` folder (typically `~/.claude/plugins/marketplaces/sc4sap/vendor/abap-mcp-adt/`), **NOT** the user's project directory.
+Clone (`github.com/babamba2/abap-mcp-adt-powerup.git`) and build the external MCP server into the **plugin root's** `vendor/abap-mcp-adt/` folder (typically `~/.claude/plugins/marketplaces/sc4sap-custom/vendor/abap-mcp-adt/`), **NOT** the user's project directory.
 
 - **⚠️ Path resolution (MANDATORY)**: the install target must be the plugin root, not the current working directory. Resolve the plugin root **dynamically** — never hardcode the path. This skill file lives at `<PLUGIN_ROOT>/skills/setup/SKILL.md`, so:
   - `PLUGIN_ROOT` = absolute path of this `SKILL.md`, then go up two levels (`../..`)
-  - On Windows this will usually be `C:\Users\<user>\.claude\plugins\marketplaces\sc4sap`, but **derive it at runtime**, do not assume
+  - On Windows this will usually be `C:\Users\<user>\.claude\plugins\marketplaces\sc4sap-custom`, but **derive it at runtime**, do not assume
 - **Invocation**: always call the script with its **absolute path**, not a relative path, so CWD is irrelevant:
   ```bash
   node "<PLUGIN_ROOT>/scripts/build-mcp-server.mjs"
