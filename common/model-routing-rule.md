@@ -141,7 +141,7 @@ Skills that internally orchestrate **two or more phases** (e.g., `/sc4sap:create
 - `<short-label>` — 1-3 word role label (`planner`, `executor`, `reviewer`, `debugger`, `writer`, `consultant-MM`, …).
 - `<agent-name>` — exact agent frontmatter `name:` (e.g., `sap-planner`, `sap-executor`).
 - `<model>` — human-readable model tier, matching the agent's frontmatter `model:` field mapped via:
-  - `claude-opus-4-7` → `Opus 4.7`
+  - `claude-opus-4-8` → `Opus 4.8`
   - `claude-sonnet-4-6` → `Sonnet 4.6`
   - `claude-haiku-4-5` → `Haiku 4.5`
 
