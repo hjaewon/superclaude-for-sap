@@ -75,22 +75,23 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 
 ---
 
-## 5. 현재 상태 (2026-06-21 갱신)
+## 5. 현재 상태 (2026-06-22 갱신)
 
 - ✅ **커밋 완료** — `29d081b`(패치) + `ff4e235`(로그) on `main`. 작업 트리 깨끗.
 - ✅ Codex 2회 검토 통과 (verdict: ship). 상세는 §10.
 - ✅ **푸시 완료** (2026-06-21) — `6908646..ff4e235 main -> main` → origin(`hjaewon/superclaude-for-sap`)과 동기화됨.
 - ✅ **마켓플레이스 이름 변경 (0.6.16) 커밋·푸시 완료** (2026-06-22) — `sc4sap` → **`sc4sap-custom`** (플러그인 이름은 `sc4sap` 유지). 충돌 해소(§3-5). 커밋 `e4700a1`, push `ff4e235..e4700a1 main -> main` → origin 동기화. 변경 파일(8): `marketplace.json`(name+version), `plugin.json`(version), `prune-cache.mjs`, 폴백 경로 3곳(`help-portal-fetch.md`/`trust-session`/`mcp-setup`), `wizard-steps.md`, 이 WORK_LOG. (push는 main 직접이라 분류기 1차 차단 → 사용자가 `! git push origin main`로 직접 실행.)
-- ⬜ **Claude Code 설치 전환 안 함** → §6 STEP 2 (이제 `sc4sap@sc4sap-custom`로 설치; 슬래시 명령, 사용자가 직접 실행) → 검증 §6 STEP 3
+- ✅ **Claude Code 설치 전환 완료 (STEP 2)** (2026-06-22) — babamba2 `sc4sap@sc4sap` **전역 제거**(`/plugin uninstall`) + fork 마켓플레이스 `sc4sap-custom` 등록(`/plugin marketplace add hjaewon/superclaude-for-sap`) + fork를 **실제 SAP 작업 폴더 `D:\Claude for SAP\superclaude_for_sap`에 Local scope로 설치**. 확인: 그 폴더 `.claude/settings.local.json` = `{"enabledPlugins":{"sc4sap@sc4sap-custom":true}}`, USER `~/.claude/settings.json` enabledPlugins엔 sc4sap 흔적 없음(전역 OFF), 마켓플레이스엔 `sc4sap`+`sc4sap-custom` 공존. → **설계 결정: fork는 전역이 아니라 프로젝트별 Local로만 켠다**(§11 참고).
+- ⬜ **STEP 3 검증 안 함** → §6 STEP 3. ⚠️ 검증은 **`superclaude_for_sap` 폴더에서 연 Claude Code 세션**에서만 가능(이 supersap_custom 세션엔 sc4sap 미설치).
 
-> **새 세션은 §5 + §6만 보면 이어감.** 푸시·설치 모두 이 폴더(supersap_custom)의 새 세션에서 그대로 진행 가능.
+> **새 세션은 §5 + §6만 보면 이어감.** 코드/배포 작업은 사실상 종료 — 남은 건 다른 폴더에서의 동작 검증(STEP 3)뿐.
 > 참고: Claude Code 메모리는 폴더(프로젝트)별로 분리됨 — 이 폴더 기준 메모리를 `~/.claude/projects/D--Claude-for-SAP-supersap-custom/memory/`에 미리 복사해 둠(새 세션 자동 로드).
 
 ---
 
 ## 6. 앞으로 할 일 (순서대로)
 
-> ⏯️ **다음 세션 재개 시작점 (2026-06-22):** 커밋·푸시는 전부 끝남(0.6.15 + 0.6.16, origin 동기화). 남은 건 **STEP 2** — Claude Code 설치를 `sc4sap@sc4sap-custom`로 전환(슬래시 명령, 사용자가 직접 실행) → **STEP 3** 검증. 이 클론에서 코드로 할 일은 없음.
+> ⏯️ **다음 세션 재개 시작점 (2026-06-22):** 커밋·푸시·설치 전부 끝남(0.6.15 + 0.6.16 origin 동기화, fork는 `superclaude_for_sap`에 Local 설치). **남은 건 STEP 3 검증 하나** — 그것도 `superclaude_for_sap` 폴더 세션에서. 이 supersap_custom 클론에서 할 일은 없음.
 
 ### STEP 1.5 — 0.6.16 변경분 커밋 & 푸시 — ✅ 완료 (2026-06-22)
 커밋 `e4700a1` + push `ff4e235..e4700a1 main -> main` → origin 동기화 완료. 8개 파일(`marketplace.json` name+ver, `plugin.json` ver, `prune-cache.mjs`, 폴백 경로 3곳, `wizard-steps.md`, `WORK_LOG.md`). JSON·스크립트 문법 검증 통과. (push는 main 직접이라 분류기 1차 차단 → 사용자가 `! git push origin main`로 직접 실행.)
@@ -99,23 +100,22 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 커밋·푸시 모두 끝남. `6908646..ff4e235 main -> main` → origin(`hjaewon/superclaude-for-sap`) 동기화 완료.
 (참고: `git push origin main`은 자동 모드 분류기가 기본 브랜치 직접 푸시라 1차 차단 → 사용자 명시 승인 후 통과.)
 
-### STEP 2 — Claude Code를 내 포크로 전환  (Claude Code 프롬프트에서)
-마켓플레이스 이름이 이제 `sc4sap-custom`(↔ babamba2 `sc4sap`)이라 **충돌 없음** → 기존 마켓플레이스 제거는 더 이상 필수 아님.
-다만 플러그인 이름은 둘 다 `sc4sap`라, 한 PC에서 **둘 다 설치하면 `/sc4sap:` 스킬이 중복**되므로 babamba2판은 빼는 걸 권장.
+### STEP 2 — Claude Code를 내 포크로 전환 — ✅ 완료 (2026-06-22)
+실제로 실행한 것:
 ```
-# (권장) 기존 babamba2판 제거 — 플러그인 이름 sc4sap 중복 회피. 공존시킬 거면 생략 가능.
-/plugin uninstall sc4sap@sc4sap
-/plugin marketplace remove sc4sap
-
-# 내 포크 마켓플레이스(sc4sap-custom) 추가 + 설치
-/plugin marketplace add hjaewon/superclaude-for-sap
-/plugin install sc4sap@sc4sap-custom
+/plugin uninstall sc4sap@sc4sap                      # babamba2 전역 제거
+/plugin marketplace add hjaewon/superclaude-for-sap  # fork 마켓플레이스(sc4sap-custom) 등록
+# → superclaude_for_sap 폴더 세션에서: /plugin Discover → sc4sap(sc4sap-custom) → Local scope
 ```
-→ 그다음 재시작 또는 `/reload-plugins`.
+- 마켓플레이스 `remove sc4sap`는 **생략**(이름이 `sc4sap` vs `sc4sap-custom`이라 충돌 없음 — §3-5).
+- 플러그인 이름은 둘 다 `sc4sap`라 **한 프로젝트에 둘 다 켜면 `/sc4sap:` 충돌** → 규칙: **한 프로젝트엔 하나만**. 프로젝트끼리는 섞어도 됨(A=babamba2, B=fork). (§11)
 
-### STEP 3 — 검증
-sap-doc-specialist에게: **"ABAP SELECT FOR ALL ENTRIES 공식 문서 본문 인용해줘"**
-→ 에이전트가 `fetch-abap-keyword-doc.mjs`(또는 수동 curl 폴백)로 `.html` 본문 + 출처를 인용하면 성공.
+### STEP 3 — 검증 (⚠️ `superclaude_for_sap` 폴더 세션에서만)
+설치 후 `/reload-plugins` 하고:
+1. **로드 확인** — `/sc4sap:` 명령·sap- 에이전트가 뜨는지
+2. **ABAP 경로** — sap-doc-specialist에게: *"ABAP SELECT FOR ALL ENTRIES 공식 문서 본문 인용해줘"* → `fetch-abap-keyword-doc.mjs`(또는 수동 curl 폴백)로 `.html` 본문 + 출처 인용하면 성공.
+3. **모듈 경로** — 예: sap-fi-consultant에게 기능 문서 인용 요청 → `fetch-sap-help-doc.mjs` 경유 help.sap.com 본문 + 출처 인용하면 성공.
+4. `$CLAUDE_PLUGIN_ROOT` 주입 여부(§4 주의)도 이때 확인 — 변수 경로 vs 수동 폴백 중 어디로 갔는지.
 
 ---
 
@@ -147,3 +147,17 @@ git push origin main
 - 8개 전부 수정. ABAP fetcher는 `new Function()` 제거 → brace-balance(문자열 스캔) + 제약 파서 + JS 언이스케이퍼. spro-lookup.md는 Step 4를 사다리에서 빼 "별도 분기"로 + Tier3 트리거 + 비용게이트 + 컨설턴트=기능문서만.
 - **2차 재검토**: "ship-with-nits" — 7 RESOLVED, #5는 보안 해결 + 파서 정확성 nit(문자열 내부 재스캔) → `re.lastIndex` 전진으로 수정 완료. "WORK_LOG mojibake" 지적은 **오탐**(파일 정상 UTF-8, node로 검증).
 - **현재**: Codex 지적 전부 해소. 배포 가능 상태.
+
+## 11. 설치 모델 결정 (2026-06-22) — 전역이 아니라 프로젝트별 Local
+
+이번 세션에서 확정한 운영 방식 (멀티머신·핸드오프용):
+
+- **fork는 전역(User scope)으로 켜지 않는다.** 실제 SAP 작업 폴더마다 **Local scope**로만 활성화 → `<project>/.claude/settings.local.json`에 `{"enabledPlugins":{"sc4sap@sc4sap-custom":true}}`.
+- **이유**: sc4sap은 SAP 연결 전용이라 모든 프로젝트에 띄울 필요 없음 + babamba2와 플러그인 이름(`sc4sap`)이 같아 전역으로 켜면 fork와 충돌.
+- **핵심 구조** (claude-code-guide + 공식문서로 확정):
+  - 플러그인 **파일**은 무조건 user-global 캐시(`~/.claude/plugins/cache/`)에 깔림. 실행 위치(cwd)는 설치 위치를 안 바꿈.
+  - **활성화(`enabledPlugins`)**만 scope별(User/Project/Local)로 나뉨 = 진짜 스코핑 레버. **scope 간 누적(additive) 병합** — Local에 한 줄 추가해도 다른 전역 플러그인은 그 프로젝트에서 그대로 살아있음(키 단위 override).
+  - 설치 시 scope 선택: `/plugin` → Discover → Enter → User/Project/**Local**. "this repository" = 그때 Claude Code가 열린 폴더 → **타깃 폴더에서 세션 열고** Local 선택해야 함.
+- **충돌 규칙**: 플러그인 이름이 둘 다 `sc4sap` → **한 프로젝트엔 babamba2/fork 중 하나만** 켤 것. 프로젝트끼리는 섞어도 무방.
+- **현재 설치처**: fork = `D:\Claude for SAP\superclaude_for_sap` (Local). babamba2 = 전역 제거됨(어디서도 안 뜸). 마켓플레이스는 `sc4sap`+`sc4sap-custom` 둘 다 등록(공존).
+- **다른 PC/폴더에 깔 때**: ① `/plugin marketplace add hjaewon/superclaude-for-sap` (1회) → ② 타깃 폴더 세션에서 `/plugin` Discover → Local 설치 → ③ `/reload-plugins`.
