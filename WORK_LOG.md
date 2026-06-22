@@ -82,7 +82,8 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 - ✅ **푸시 완료** (2026-06-21) — `6908646..ff4e235 main -> main` → origin(`hjaewon/superclaude-for-sap`)과 동기화됨.
 - ✅ **마켓플레이스 이름 변경 (0.6.16) 커밋·푸시 완료** (2026-06-22) — `sc4sap` → **`sc4sap-custom`** (플러그인 이름은 `sc4sap` 유지). 충돌 해소(§3-5). 커밋 `e4700a1`, push `ff4e235..e4700a1 main -> main` → origin 동기화. 변경 파일(8): `marketplace.json`(name+version), `plugin.json`(version), `prune-cache.mjs`, 폴백 경로 3곳(`help-portal-fetch.md`/`trust-session`/`mcp-setup`), `wizard-steps.md`, 이 WORK_LOG. (push는 main 직접이라 분류기 1차 차단 → 사용자가 `! git push origin main`로 직접 실행.)
 - ✅ **Claude Code 설치 전환 완료 (STEP 2)** (2026-06-22) — babamba2 `sc4sap@sc4sap` **전역 제거**(`/plugin uninstall`) + fork 마켓플레이스 `sc4sap-custom` 등록(`/plugin marketplace add hjaewon/superclaude-for-sap`) + fork를 **실제 SAP 작업 폴더 `D:\Claude for SAP\superclaude_for_sap`에 Local scope로 설치**. 확인: 그 폴더 `.claude/settings.local.json` = `{"enabledPlugins":{"sc4sap@sc4sap-custom":true}}`, USER `~/.claude/settings.json` enabledPlugins엔 sc4sap 흔적 없음(전역 OFF), 마켓플레이스엔 `sc4sap`+`sc4sap-custom` 공존. → **설계 결정: fork는 전역이 아니라 프로젝트별 Local로만 켠다**(§11 참고).
-- ⬜ **STEP 3 검증 안 함** → §6 STEP 3. ⚠️ 검증은 **`superclaude_for_sap` 폴더에서 연 Claude Code 세션**에서만 가능(이 supersap_custom 세션엔 sc4sap 미설치).
+- ✅ **Opus 4.8 채택 (0.6.17) 커밋·푸시 완료** (2026-06-22) — 커밋 `7f7a1d5`, push `638b27b..7f7a1d5 main -> main`. 24개 파일: ① 20개 Opus-tier 에이전트 frontmatter `model: claude-opus-4-7` → **`claude-opus-4-8`** ② HUD `scripts/hud/lib/pricing.mjs`에 `claude-opus-4-8`(ctx **1_000_000**) 추가 → 기존엔 4.8 항목이 없어 `DEFAULT`(ctx 200_000)로 폴백돼 컨텍스트가 200k로 표시되던 버그 해소 (검증: `priceFor('claude-opus-4-8[1m]').ctx === 1000000`, statusline.mjs L122가 `price.ctx`를 분모로 사용) ③ opus-4-7/4-6 가격 $15/$75 → **$5/$25**(현 공식가; opus-4=4.0은 $15/$75 유지) ④ model-routing-rule 라벨맵 `claude-opus-4-8 → Opus 4.8` ⑤ 버전 0.6.16→0.6.17. 문서 예시(FEATURES×4 등)의 "Opus 4.7" 표기는 "핵심만" 범위라 미변경.
+- ⬜ **STEP 3 검증 안 함** → §6 STEP 3. ⚠️ 검증은 **`superclaude_for_sap` 폴더에서 연 Claude Code 세션**에서만 가능(이 supersap_custom 세션엔 sc4sap 미설치). 0.6.17 반영도 거기서 `/plugin` 업데이트(엔터)→`/reload-plugins`로 (재설치 불필요, Local scope 유지됨). HUD 1M 표시는 *그 세션이 Opus 4.8로 돌 때* 나타남.
 
 > **새 세션은 §5 + §6만 보면 이어감.** 코드/배포 작업은 사실상 종료 — 남은 건 다른 폴더에서의 동작 검증(STEP 3)뿐.
 > 참고: Claude Code 메모리는 폴더(프로젝트)별로 분리됨 — 이 폴더 기준 메모리를 `~/.claude/projects/D--Claude-for-SAP-supersap-custom/memory/`에 미리 복사해 둠(새 세션 자동 로드).
@@ -141,6 +142,7 @@ git push origin main
 - [ ] 훅 접두사 버그(§3-6) 수정: transport/activation/syntax 훅의 `mcp__mcp-abap-adt__` → 부분일치 또는 `mcp__plugin_sc4sap_sap__`로.
 - [ ] 패치들을 원본에 PR로 기여(머지 충돌 감소 + 에티켓).
 - [ ] `/docs/r/...` readable-URL 형식 지원(현재 canonical `/docs/<product>/<deliverable>/<topic>.html`만).
+- [ ] **하네스 발전방향 토론** — 2026-06-22 논의(하네스 한계·세컨드 브레인·베스트프랙티스 적재·저작권·Context7·Playwright MCP 등)는 별도 문서로 보관: `D:\Claude for SAP\superclaude_for_sap\JNC\sc4sap_하네스_발전방향_20260622.md` (repo 밖, SAP 작업폴더). 이 repo에는 포인터만.
 
 ## 10. Codex 검토 이력 (2026-06-21)
 - **1차**: "sound-with-changes" — 8개 지적(보안 eval, 의도충돌, Tier규율, 비용게이트, 역할경계, version 무음, readable URL, 폴백경로).
