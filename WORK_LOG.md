@@ -1,13 +1,13 @@
 # sc4sap 포크 작업 로그 (이어가기용 핸드오프)
 
 > 이 문서 하나만 읽으면 다음 세션(또는 다른 사람/AI)이 작업을 이어갈 수 있도록 정리한 것.
-> 마지막 업데이트: 2026-06-21
+> 마지막 업데이트: 2026-06-22
 
 ---
 
 ## 0. 한 줄 요약
 
-원본 sc4sap 플러그인(MIT)을 **내 GitHub 포크로 떠서**, **"ABAP 공식문서를 실제로 읽어오는 패치"**를 넣고, 여러 컴퓨터에서 내 포크로 설치·관리하려는 작업. **fetcher 패치는 커밋·푸시 완료(0.6.15). 마켓플레이스 이름을 `sc4sap-custom`으로 바꾼 0.6.16 변경은 로컬에만 있음(커밋·푸시 전). 아직 설치 전환 전.**
+원본 sc4sap 플러그인(MIT)을 **내 GitHub 포크로 떠서**, **"ABAP 공식문서를 실제로 읽어오는 패치"**를 넣고, 여러 컴퓨터에서 내 포크로 설치·관리하려는 작업. **fetcher 패치(0.6.15) + 마켓플레이스 이름 `sc4sap-custom` 변경(0.6.16) 모두 커밋·푸시 완료. 남은 건 Claude Code 설치를 `sc4sap@sc4sap-custom`로 전환하는 것뿐(STEP 2).**
 
 ---
 
@@ -80,7 +80,7 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 - ✅ **커밋 완료** — `29d081b`(패치) + `ff4e235`(로그) on `main`. 작업 트리 깨끗.
 - ✅ Codex 2회 검토 통과 (verdict: ship). 상세는 §10.
 - ✅ **푸시 완료** (2026-06-21) — `6908646..ff4e235 main -> main` → origin(`hjaewon/superclaude-for-sap`)과 동기화됨.
-- 🔧 **마켓플레이스 이름 변경 (0.6.16)** — `sc4sap` → **`sc4sap-custom`** (플러그인 이름은 `sc4sap` 유지). 충돌 해소(§3-5). 변경 파일: `marketplace.json`(name+version), `plugin.json`(version), `prune-cache.mjs`, 폴백 경로 3곳(`help-portal-fetch.md`/`trust-session`/`mcp-setup`), `wizard-steps.md`, 이 WORK_LOG. JSON·스크립트 문법 검증 통과. **→ 커밋·푸시 대기(로컬에만 있음).**
+- ✅ **마켓플레이스 이름 변경 (0.6.16) 커밋·푸시 완료** (2026-06-22) — `sc4sap` → **`sc4sap-custom`** (플러그인 이름은 `sc4sap` 유지). 충돌 해소(§3-5). 커밋 `e4700a1`, push `ff4e235..e4700a1 main -> main` → origin 동기화. 변경 파일(8): `marketplace.json`(name+version), `plugin.json`(version), `prune-cache.mjs`, 폴백 경로 3곳(`help-portal-fetch.md`/`trust-session`/`mcp-setup`), `wizard-steps.md`, 이 WORK_LOG. (push는 main 직접이라 분류기 1차 차단 → 사용자가 `! git push origin main`로 직접 실행.)
 - ⬜ **Claude Code 설치 전환 안 함** → §6 STEP 2 (이제 `sc4sap@sc4sap-custom`로 설치; 슬래시 명령, 사용자가 직접 실행) → 검증 §6 STEP 3
 
 > **새 세션은 §5 + §6만 보면 이어감.** 푸시·설치 모두 이 폴더(supersap_custom)의 새 세션에서 그대로 진행 가능.
@@ -90,16 +90,10 @@ node scripts/fetch-abap-keyword-doc.mjs abenwhere_all_entries
 
 ## 6. 앞으로 할 일 (순서대로)
 
-> ⏯️ **다음 세션 재개 시작점 (2026-06-21 저녁 중단):** 마켓플레이스 이름 변경(0.6.16) 8개 파일이 **커밋 안 된 채 작업 트리에만** 있음. `git status`로 확인됨. **내일 STEP 1.5부터 시작.**
+> ⏯️ **다음 세션 재개 시작점 (2026-06-22):** 커밋·푸시는 전부 끝남(0.6.15 + 0.6.16, origin 동기화). 남은 건 **STEP 2** — Claude Code 설치를 `sc4sap@sc4sap-custom`로 전환(슬래시 명령, 사용자가 직접 실행) → **STEP 3** 검증. 이 클론에서 코드로 할 일은 없음.
 
-### STEP 1.5 — 0.6.16 변경분 커밋 & 푸시  (내일 가장 먼저 — 이 클론에서)
-```bash
-cd "D:\Claude for SAP\supersap_custom"
-git add -A          # WORK_LOG.md 포함 8개 파일 전부 스테이징 (이번엔 WORK_LOG도 변경분이므로 같이 올림)
-git commit -m "chore(marketplace): rename marketplace sc4sap -> sc4sap-custom; bump 0.6.16"
-git push origin main   # ⚠️ main 직접 푸시라 자동모드 분류기가 1차 차단 → 사용자 명시 승인 필요(STEP 1 때와 동일)
-```
-변경 파일(8): `marketplace.json`(name+ver), `plugin.json`(ver), `prune-cache.mjs`, `common/help-portal-fetch.md`, `skills/trust-session/SKILL.md`, `skills/mcp-setup/SKILL.md`, `skills/setup/wizard-steps.md`, `WORK_LOG.md`. (JSON·스크립트 문법 검증은 중단 전 통과해 둠.)
+### STEP 1.5 — 0.6.16 변경분 커밋 & 푸시 — ✅ 완료 (2026-06-22)
+커밋 `e4700a1` + push `ff4e235..e4700a1 main -> main` → origin 동기화 완료. 8개 파일(`marketplace.json` name+ver, `plugin.json` ver, `prune-cache.mjs`, 폴백 경로 3곳, `wizard-steps.md`, `WORK_LOG.md`). JSON·스크립트 문법 검증 통과. (push는 main 직접이라 분류기 1차 차단 → 사용자가 `! git push origin main`로 직접 실행.)
 
 ### STEP 1 — fetcher 패치 커밋 & 푸시 (0.6.15) — ✅ 완료 (2026-06-21)
 커밋·푸시 모두 끝남. `6908646..ff4e235 main -> main` → origin(`hjaewon/superclaude-for-sap`) 동기화 완료.
